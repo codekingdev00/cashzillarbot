@@ -1,0 +1,16 @@
+services:
+  - type: worker
+    name: cashzillarbot
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m bot run --config /etc/secrets/config.yaml
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.11
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+    disk:
+      name: jamesbot-data
+      mountPath: /var/data
+      sizeGB: 1
