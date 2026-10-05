@@ -1,0 +1,141 @@
+# jamesbot configuration
+# ----------------------------------------------------------------------------
+# Copy to config/config.yaml and edit. Every key is required: missing or unknown
+# keys are rejected so a typo can never fall back to a silent default.
+# Risk values are additionally capped by absolute ceilings in bot/risk/limits.py.
+#
+# DISCLAIMER: no setting here makes the strategy profitable. Backtest and paper
+# results do not guarantee future results. Expect losing trades and losing streaks.
+# ----------------------------------------------------------------------------
+
+exchange:
+  id: bybit                  # ccxt id: bybit (USDT perpetuals) or binanceusdm (Binance USDT-M futures)
+  hostname: null               # null = default. bytick.com is Bybit's official alternate domain if bybit.com is blocked
+  market_type: swap          # perpetual swaps
+  use_websocket: true        # live prices via ccxt.pro WebSocket; falls back to REST polling
+  rest_poll_seconds: 5       # polling interval when WebSocket is unavailable
+  request_timeout_ms: 15000
+  api_key_env: EXCHANGE_API_KEY        # not needed for paper trading (public data only)
+  api_secret_env: EXCHANGE_API_SECRET
+  api_password_env: EXCHANGE_API_PASSWORD   # Bitget API passphrase
+
+mode:
+  trading_mode: paper        # paper = simulated only | demo = owner's account trades on the Bitget DEMO account (fake money)
+  auto_execute: false        # false = signal-only alerts; true = bot opens PAPER positions itself
+  starting_equity: 10000     # paper account size in USDT
+  heartbeat_seconds: 15      # how often equity, daily loss and drawdown are re-checked
+  max_topup: 100000         # largest single paper top-up via /topup
+  stake_pct_options: [1, 5, 10]   # trade amount users pick from, as % of their balance (used as margin)
+  default_stake_pct: 5       # trade amount % for new accounts
+
+pairs:
+  - BTC/USDT
+  - ETH/USDT
+
+timeframes:
+  trend: 4h                  # higher timeframe: trend bias
+  entry: 15m                 # lower timeframe: entry trigger
+  history_bars: 500          # candles fetched per timeframe (indicator warm-up)
+  candle_close_delay_seconds: 3   # wait after candle close before fetching it
+
+strategy:
+  ema_fast: 21               # entry-timeframe EMAs
+  ema_slow: 55
+  htf_ema_fast: 50           # trend-timeframe EMAs
+  htf_ema_slow: 200
+  adx_period: 14
+  adx_min: 20                # below this the market is treated as ranging
+  rsi_period: 14
+  rsi_long_min: 50           # RSI zone that confirms long momentum without being overbought
+  rsi_long_max: 70
+  rsi_short_min: 30
+  rsi_short_max: 50
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+  bb_period: 20
+  bb_std: 2.0
+  atr_period: 14
+  volume_sma_period: 20
+  volume_mult: 1.2           # bar volume must be >= 1.2x its average (avoid thin fakeouts)
+  swing_left: 3              # swing high/low pivot definition (bars each side)
+  swing_right: 3
+  structure_lookback: 100    # bars searched for support/resistance swings
+  divergence_lookback: 60    # bars searched for RSI divergence
+  trigger_lookback: 3        # entry trigger must be this fresh (bars)
+  min_confidence: 3          # of 5 checks (hard floor 3)
+  min_categories: 3          # distinct categories: trend, momentum, volatility/structure, volume (hard floor 3)
+  signal_cooldown_bars: 8    # no repeat signal on the same pair within this many entry bars
+
+filters:
+  allow_during_news: false   # block new signals around the events listed below
+  news_events: []            # keep this calendar current yourself, e.g.
+  #  - {time: "2026-10-14T12:30:00Z", name: "US CPI"}
+  #  - {time: "2026-10-28T18:00:00Z", name: "FOMC rate decision", before_min: 120, after_min: 120}
+  default_news_before_min: 60
+  default_news_after_min: 60
+  allow_extreme_volatility: false
+  atr_spike_mult: 2.5        # block if ATR% exceeds 2.5x its recent median
+  atr_spike_lookback: 96     # bars used for that median (96 x 15m = 1 day)
+  candle_range_atr_max: 3.0  # block if the signal candle's range exceeds 3x ATR
+
+risk:
+  risk_per_trade_pct: 1.0    # equity lost if the stop is hit (fees and slippage included). Hard cap 2%.
+  max_leverage: 3            # total notional <= equity x this. Hard cap 10x.
+  max_daily_loss_pct: 3.0    # halt new entries for the rest of the UTC day at -3% (mark-to-market)
+  max_open_positions: 3
+  max_positions_per_symbol: 1
+  max_exposure_per_asset_pct: 150   # notional per asset <= 150% of equity
+  min_reward_risk: 1.5       # reject signals below 1:1.5
+  stop:
+    method: hybrid           # atr | structure | hybrid (wider of ATR stop and swing stop)
+    atr_mult: 1.5
+    structure_buffer_atr: 0.2  # place structure stops this many ATR beyond the swing
+    min_stop_atr: 0.75       # stops tighter than this are widened (noise protection)
+    max_stop_atr: 4.0        # swing stops wider than this are ignored
+  take_profit:
+    target_r: 2.5            # final target in R, capped at the nearest opposing swing level
+    partial_at_r: 1.0        # take a partial profit at +1R
+    partial_pct: 50          # % of the original size closed at the partial target
+    move_stop_to_breakeven: true
+    trailing: true           # ATR trailing stop after the partial target
+    trail_atr_mult: 2.0
+  kill_switch:
+    max_consecutive_api_errors: 5
+    max_slippage_pct: 0.5    # a fill this far from the expected price trips the kill switch
+    max_drawdown_pct: 15     # peak-to-trough equity drawdown that trips the kill switch
+    flatten_on_kill: true    # close all positions when the kill switch trips
+
+execution:
+  fee_pct: 0.05              # taker fee per side, %
+  slippage_pct: 0.02         # simulated slippage per fill, % (paper and backtest)
+
+paper_gate:                  # minimum paper record before live execution may ever be enabled
+  min_paper_trades: 50
+  min_paper_days: 30
+
+telegram:
+  enabled: false             # set true after filling in the chat id below
+  token_env: TELEGRAM_BOT_TOKEN      # token is read from this environment variable / .env
+  allowed_chat_ids: []       # owner chat ids: full control (pause, settings, kill)
+  alert_chat_id: null        # where alerts go (channel id like -100...); null = first allowed id
+  pnl_update_minutes: 60     # periodic P&L update; 0 disables
+  public_access: false       # true = any chat can use analyze/status/history/help; controls stay owner-only
+  public_rate_limit_seconds: 5   # minimum gap between commands from one non-owner chat
+
+logging:
+  level: INFO
+  file: logs/jamesbot.log
+  db: data/jamesbot.db
+  max_bytes: 5000000
+  backup_count: 5
+  equity_snapshot_minutes: 5
+
+backtest:
+  start: "2025-01-01"
+  end: "2025-12-31"
+  initial_equity: 10000
+  data_dir: data/history
+  report_dir: reports
+  qty_step: 0.001            # simulated exchange lot step
+  min_notional: 5            # simulated exchange minimum order value

@@ -1,0 +1,6 @@
+ccxt>=4.3
+python-telegram-bot>=21,<22
+pandas>=2.0
+numpy>=1.26,<2
+PyYAML>=6
+pytest>=8
